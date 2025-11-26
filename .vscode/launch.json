@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: FastAPI Server",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/nfl-stats-chat/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/nfl-stats-chat",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/nfl-stats-chat"
+      },
+      "justMyCode": true,
+      "consoleName": "Backend"
+    },
+    {
+      "name": "Frontend: Vite Dev Server",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/frontend",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Local:.*http://localhost:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "debugWithChrome"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack: Frontend + Backend",
+      "configurations": ["Backend: FastAPI Server", "Frontend: Vite Dev Server"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "full-stack",
+        "order": 1
+      }
+    }
+  ]
+}

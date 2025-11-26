@@ -1,0 +1,14 @@
+[project]
+name = "deep-shot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.121.3",
+    "nflreadpy>=0.1.5",
+    "openai>=2.8.1",
+    "pandas>=2.3.3",
+    "pydantic>=2.12.4",
+    "uvicorn>=0.38.0",
+]
