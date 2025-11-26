@@ -2,14 +2,13 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
+import ast
 
 from app.services.code_executor import CodeExecutor, ASTValidator, CodeValidationError
 
 
 class TestASTValidator:
     def test_visit_import_allowed_module_passes(self):
-        import ast
-
         code = "import nflreadpy as nfl"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -19,8 +18,6 @@ class TestASTValidator:
         assert validator.errors == []
 
     def test_visit_import_forbidden_module_fails(self):
-        import ast
-
         code = "import os"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -31,8 +28,6 @@ class TestASTValidator:
         assert "os" in validator.errors[0]
 
     def test_visit_import_subprocess_fails(self):
-        import ast
-
         code = "import subprocess"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -43,8 +38,6 @@ class TestASTValidator:
         assert "subprocess" in validator.errors[0]
 
     def test_visit_import_from_allowed_module_passes(self):
-        import ast
-
         code = "from datetime import datetime"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -54,8 +47,6 @@ class TestASTValidator:
         assert validator.errors == []
 
     def test_visit_import_from_forbidden_module_fails(self):
-        import ast
-
         code = "from os import system"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -66,8 +57,6 @@ class TestASTValidator:
         assert "os" in validator.errors[0]
 
     def test_visit_call_eval_fails(self):
-        import ast
-
         code = "eval('1+1')"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -78,8 +67,6 @@ class TestASTValidator:
         assert "eval" in validator.errors[0]
 
     def test_visit_call_exec_fails(self):
-        import ast
-
         code = "exec('x = 1')"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -90,8 +77,6 @@ class TestASTValidator:
         assert "exec" in validator.errors[0]
 
     def test_visit_call_open_fails(self):
-        import ast
-
         code = "open('file.txt')"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -102,8 +87,6 @@ class TestASTValidator:
         assert "open" in validator.errors[0]
 
     def test_visit_call_import_fails(self):
-        import ast
-
         code = "__import__('os')"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -114,8 +97,6 @@ class TestASTValidator:
         assert "__import__" in validator.errors[0]
 
     def test_visit_attribute_builtins_fails(self):
-        import ast
-
         code = "x.__builtins__"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -126,8 +107,6 @@ class TestASTValidator:
         assert "__builtins__" in validator.errors[0]
 
     def test_visit_attribute_globals_fails(self):
-        import ast
-
         code = "x.__globals__"
         tree = ast.parse(code)
         validator = ASTValidator()
@@ -138,8 +117,6 @@ class TestASTValidator:
         assert "__globals__" in validator.errors[0]
 
     def test_visit_multiple_violations_collects_all(self):
-        import ast
-
         code = "import os\neval('x')\nopen('file')"
         tree = ast.parse(code)
         validator = ASTValidator()

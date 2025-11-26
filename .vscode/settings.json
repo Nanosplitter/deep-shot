@@ -1,3 +1,10 @@
 {
-  "conventionalCommits.scopes": ["poc", "api", "streamlit"]
+  "conventionalCommits.scopes": ["poc", "api", "streamlit"],
+  "files.exclude": {
+    "**/__init__.py": true,
+    "**/__pycache__": true
+  },
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
 }
