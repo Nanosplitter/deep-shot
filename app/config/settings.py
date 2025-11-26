@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str
-    model: str = "gpt-4.1"
-    max_retries: int = 2
+    model: str = "gpt-5.1"
+    max_retries: int = 3
     current_season: int = 2025
     code_timeout_seconds: int = 30
 

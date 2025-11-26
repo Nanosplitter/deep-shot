@@ -3,10 +3,27 @@
 from pydantic import BaseModel, Field
 
 
+class ChatMessage(BaseModel):
+    """A single message in a conversation."""
+
+    role: str = Field(
+        ..., description="The role of the message sender (user or assistant)"
+    )
+    content: str = Field(..., description="The message content")
+
+
 class NFLInput(BaseModel):
     """Request model for NFL stats queries."""
 
     input: str = Field(..., description="The NFL stats question to process")
+
+
+class NFLChatInput(BaseModel):
+    """Request model for multi-turn NFL stats conversations."""
+
+    messages: list[ChatMessage] = Field(
+        ..., description="The conversation history including the current message"
+    )
 
 
 class NFLResponse(BaseModel):

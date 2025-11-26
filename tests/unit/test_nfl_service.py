@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 
-from app.models.schemas import CodeExecutionResult
+from app.models.schemas import ChatMessage, CodeExecutionResult
 
 
 class TestNFLServiceBuildMessages:
@@ -31,6 +31,24 @@ class TestNFLServiceBuildMessages:
         assert len(messages) == 4
         assert "error" in messages[-1]["content"].lower()
         assert code in messages[-2]["content"]
+
+    def test_build_chat_messages_includes_system_prompts(self, nfl_service):
+        chat_messages = [
+            ChatMessage(role="user", content="First question"),
+            ChatMessage(role="assistant", content="First answer"),
+            ChatMessage(role="user", content="Follow up"),
+        ]
+
+        messages = nfl_service._build_chat_messages(chat_messages)
+
+        assert len(messages) == 5
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "system"
+        assert messages[2]["role"] == "user"
+        assert messages[2]["content"] == "First question"
+        assert messages[3]["role"] == "assistant"
+        assert messages[4]["role"] == "user"
+        assert messages[4]["content"] == "Follow up"
 
 
 class TestNFLServiceExtractors:
@@ -154,6 +172,76 @@ class TestNFLServiceProcess:
 
         assert "Failed to generate working code" in result.response
         assert result.attempts == 3
+
+
+class TestNFLServiceProcessChat:
+    @pytest.mark.asyncio
+    async def test_process_chat_empty_messages_returns_error(self, nfl_service):
+        result = await nfl_service.process_chat([])
+
+        assert result.response == "No messages provided"
+        assert result.attempts == 0
+
+    @pytest.mark.asyncio
+    async def test_process_chat_successful_code_execution_returns_response(
+        self, nfl_service, mock_function_call_response, mock_text_response
+    ):
+        nfl_service._call_llm = AsyncMock(
+            side_effect=[
+                mock_function_call_response('def run():\n    return {"yards": 150}'),
+                mock_text_response("The player has 150 yards"),
+            ]
+        )
+        nfl_service.code_executor.execute = MagicMock(
+            return_value=CodeExecutionResult(success=True, data={"yards": 150})
+        )
+        messages = [
+            ChatMessage(role="user", content="How many yards did he have?"),
+        ]
+
+        result = await nfl_service.process_chat(messages)
+
+        assert result.response == "The player has 150 yards"
+        assert result.raw_data == {"yards": 150}
+        assert result.attempts == 1
+
+    @pytest.mark.asyncio
+    async def test_process_chat_multi_turn_context_is_included(
+        self, nfl_service, mock_text_response
+    ):
+        nfl_service._call_llm = AsyncMock(
+            return_value=mock_text_response("The Lions won by 10 points")
+        )
+        messages = [
+            ChatMessage(role="user", content="How did the Lions do last game?"),
+            ChatMessage(role="assistant", content="They won 34-24"),
+            ChatMessage(role="user", content="By how much?"),
+        ]
+
+        await nfl_service.process_chat(messages)
+
+        call_args = nfl_service._call_llm.call_args[0][0]
+        user_messages = [m for m in call_args if m["role"] == "user"]
+        assistant_messages = [m for m in call_args if m["role"] == "assistant"]
+        assert len(user_messages) == 2
+        assert len(assistant_messages) == 1
+        assert "How did the Lions do" in user_messages[0]["content"]
+        assert "By how much?" in user_messages[1]["content"]
+
+    @pytest.mark.asyncio
+    async def test_process_chat_no_tool_call_returns_text_response(
+        self, nfl_service, mock_text_response
+    ):
+        nfl_service._call_llm = AsyncMock(
+            return_value=mock_text_response("Just a conversational response")
+        )
+        messages = [ChatMessage(role="user", content="Tell me about the Lions")]
+
+        result = await nfl_service.process_chat(messages)
+
+        assert result.response == "Just a conversational response"
+        assert result.code_generated is None
+        assert result.raw_data is None
 
 
 class TestNFLServiceLLMCalls:

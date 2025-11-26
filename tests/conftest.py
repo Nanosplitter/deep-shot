@@ -13,7 +13,7 @@ from app.services.nfl_service import NFLService
 def settings():
     return Settings(
         openai_api_key="test-api-key",
-        model="gpt-4.1",
+        model="gpt-5.1",
         max_retries=2,
         current_season=2025,
         code_timeout_seconds=5,

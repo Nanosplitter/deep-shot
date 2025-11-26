@@ -13,7 +13,7 @@ from app.config.prompts import (
 )
 from app.config.settings import Settings
 from app.config.tools import TOOLS
-from app.models.schemas import NFLResponse, CodeExecutionResult
+from app.models.schemas import ChatMessage, NFLResponse, CodeExecutionResult
 from app.services.code_executor import CodeExecutor
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,18 @@ class NFLService:
             {"role": "system", "content": get_docs_prompt()},
             {"role": "user", "content": user_input},
         ]
+
+    def _build_chat_messages(self, messages: list[ChatMessage]) -> list[dict[str, str]]:
+        """Build message list for multi-turn conversation."""
+        base = [
+            {
+                "role": "system",
+                "content": get_system_prompt(self.settings.current_season),
+            },
+            {"role": "system", "content": get_docs_prompt()},
+        ]
+        conversation = [{"role": msg.role, "content": msg.content} for msg in messages]
+        return base + conversation
 
     def _build_retry_messages(
         self,
@@ -100,6 +112,7 @@ class NFLService:
         kwargs = {
             "model": self.settings.model,
             "input": messages,
+            "text": {"verbosity": "low"},
         }
         if tools:
             kwargs["tools"] = tools
@@ -152,6 +165,72 @@ class NFLService:
                 logger.info(f"Code executed successfully: {execution_result.data}")
                 summary = await self._summarize_result(
                     user_input, execution_result.data
+                )
+                return NFLResponse(
+                    response=summary,
+                    code_generated=code,
+                    raw_data=execution_result.data,
+                    attempts=attempt + 1,
+                )
+
+            attempt += 1
+            error_info = execution_result.error or "Unknown error"
+            if execution_result.traceback:
+                error_info = f"{error_info}\n{execution_result.traceback}"
+
+            logger.warning(f"Code execution failed (attempt {attempt}): {error_info}")
+
+            if attempt > self.settings.max_retries:
+                return NFLResponse(
+                    response=f"Failed to generate working code after {attempt} attempts. Last error: {error_info}",
+                    code_generated=code,
+                    attempts=attempt,
+                )
+
+            messages = self._build_retry_messages(base_messages, code, error_info)
+
+        return NFLResponse(
+            response="Unexpected error in processing loop",
+            code_generated=last_code,
+            attempts=attempt,
+        )
+
+    async def process_chat(self, chat_messages: list[ChatMessage]) -> NFLResponse:
+        """Process a multi-turn NFL stats conversation and return a response."""
+        if not chat_messages:
+            return NFLResponse(
+                response="No messages provided",
+                attempts=0,
+            )
+
+        base_messages = self._build_chat_messages(chat_messages)
+        messages = list(base_messages)
+        attempt = 0
+        last_code = None
+        latest_user_input = chat_messages[-1].content if chat_messages else ""
+
+        while attempt <= self.settings.max_retries:
+            response = await self._call_llm(messages, tools=TOOLS)
+            function_call_result = self._extract_function_call(response)
+
+            if function_call_result is None:
+                text_response = self._extract_text_response(response)
+                return NFLResponse(
+                    response=text_response,
+                    code_generated=last_code,
+                    attempts=attempt + 1,
+                )
+
+            _, code = function_call_result
+            last_code = code
+            logger.info(f"Generated code (attempt {attempt + 1}):\n{code}")
+
+            execution_result: CodeExecutionResult = self.code_executor.execute(code)
+
+            if execution_result.success:
+                logger.info(f"Code executed successfully: {execution_result.data}")
+                summary = await self._summarize_result(
+                    latest_user_input, execution_result.data
                 )
                 return NFLResponse(
                     response=summary,
