@@ -1,9 +1,11 @@
 """FastAPI application entry point."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.nfl import router as nfl_router
 from app.config.settings import get_settings
@@ -29,6 +31,16 @@ app = FastAPI(
     description="NFL stats API powered by AI-generated code",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Configure CORS
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(nfl_router)

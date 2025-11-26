@@ -1,0 +1,80 @@
+.code-block {
+  margin-top: 0.75rem;
+  background: #1a202c;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  font-size: 0.875rem;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: #2d3748;
+  border-bottom: 1px solid #4a5568;
+}
+
+.code-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.collapse-toggle {
+  background: none;
+  border: none;
+  color: #a0aec0;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.75rem;
+  width: 1rem;
+}
+
+.collapse-toggle:hover {
+  color: #e2e8f0;
+}
+
+.language-badge {
+  background: #4a5568;
+  color: #e2e8f0;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.title-text {
+  color: #a0aec0;
+  font-size: 0.75rem;
+}
+
+.copy-button {
+  background: transparent;
+  border: 1px solid #4a5568;
+  color: #a0aec0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.copy-button:hover {
+  background: #4a5568;
+  color: #e2e8f0;
+}
+
+.code-content {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  color: #e2e8f0;
+  line-height: 1.6;
+}
+
+.code-content code {
+  font-family: "Fira Code", "Consolas", "Monaco", monospace;
+  white-space: pre;
+}

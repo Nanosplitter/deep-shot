@@ -1,5 +1,5 @@
 {
-  "conventionalCommits.scopes": ["poc", "api", "streamlit"],
+  "conventionalCommits.scopes": ["poc", "api", "streamlit", "frontend"],
   "files.exclude": {
     "**/__init__.py": true,
     "**/__pycache__": true

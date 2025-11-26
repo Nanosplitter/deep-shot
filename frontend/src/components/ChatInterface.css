@@ -1,0 +1,75 @@
+.chat-interface {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 900px;
+  margin: 0 auto;
+  background: #1a1a2e;
+}
+
+.chat-header {
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+  border-bottom: 1px solid #2d3748;
+  text-align: center;
+}
+
+.chat-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: #e2e8f0;
+}
+
+.chat-header p {
+  margin: 0.5rem 0 0;
+  color: #a0aec0;
+  font-size: 0.875rem;
+}
+
+.clear-button {
+  margin-top: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  border: 1px solid #4a5568;
+  color: #a0aec0;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+
+.clear-button:hover:not(:disabled) {
+  background: #2d3748;
+  color: #e2e8f0;
+}
+
+.clear-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  margin: 0 1rem;
+  background: #742a2a;
+  border: 1px solid #9b2c2c;
+  border-radius: 0.5rem;
+  color: #feb2b2;
+  font-size: 0.875rem;
+}
+
+.error-banner button {
+  background: transparent;
+  border: none;
+  color: #feb2b2;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.error-banner button:hover {
+  color: #fff;
+}
