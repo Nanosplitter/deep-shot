@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     openai_api_key: str
     model: str = "gpt-5.1-codex-mini"
+    summarization_model: str = "gpt-5-mini"
     max_retries: int = 3
     current_season: int = 2025
     code_timeout_seconds: int = 30

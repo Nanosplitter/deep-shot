@@ -93,12 +93,16 @@ class NFLService:
         messages: list[dict[str, str]],
         tools: list[dict] | None = None,
         force_tool: bool = False,
+        model: str | None = None,
+        reasoning: bool = True,
     ) -> Any:
         """Make an async call to the OpenAI API."""
         kwargs = {
-            "model": self.settings.model,
+            "model": model or self.settings.model,
             "input": messages,
         }
+        if not reasoning:
+            kwargs["reasoning"] = {"effort": "minimal"}
         if tools:
             kwargs["tools"] = tools
             if force_tool:
@@ -123,7 +127,9 @@ class NFLService:
                         f"```json\n{json.dumps(result_data, indent=2)}\n```"
                     ),
                 },
-            ]
+            ],
+            model=self.settings.summarization_model,
+            reasoning=False,
         )
         return self._extract_text_response(response)
 
