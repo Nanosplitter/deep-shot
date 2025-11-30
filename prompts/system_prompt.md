@@ -69,5 +69,6 @@ def run():
 - Use `.to_dicts()` or aggregate to plain Python types before returning
 - Player names in pbp are abbreviated (e.g., "J.Goff" not "Jared Goff")
 - Since player names are abbreviated, you may need to use other unique identifiers for the players so that stats from 2 or more players aren't mixed.
+- Return the full player name in the result data if you can.
 - Team abbreviations: DET, KC, PHI, SF, etc.
 - Do NOT print anything - only return data
