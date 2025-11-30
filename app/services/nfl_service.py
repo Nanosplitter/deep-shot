@@ -2,6 +2,7 @@
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from openai import AsyncOpenAI
@@ -13,10 +14,26 @@ from app.config.prompts import (
 )
 from app.config.settings import Settings
 from app.config.tools import TOOLS
-from app.models.schemas import ChatMessage, NFLResponse, CodeExecutionResult
+from app.models.schemas import (
+    ChatMessage,
+    NFLResponse,
+    CodeExecutionResult,
+    SummarizationResult,
+)
 from app.services.code_executor import CodeExecutor
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CodeGenResult:
+    """Result from a code generation attempt."""
+
+    success: bool
+    code: str | None = None
+    data: dict | None = None
+    error: str | None = None
+    attempts: int = 0
 
 
 class NFLService:
@@ -114,10 +131,17 @@ class NFLService:
 
         return await self.client.responses.create(**kwargs)
 
-    async def _summarize_result(self, user_input: str, result_data: dict) -> str:
-        """Ask LLM to summarize the code execution result."""
-        response = await self._call_llm(
-            [
+    async def _summarize_result(
+        self, user_input: str, result_data: dict
+    ) -> tuple[bool, str]:
+        """Ask LLM to summarize and validate the code execution result.
+
+        Returns:
+            Tuple of (is_valid, summary_or_reason)
+        """
+        response = await self.client.responses.parse(
+            model=self.settings.summarization_model,
+            input=[
                 {"role": "system", "content": get_summarization_prompt()},
                 {
                     "role": "user",
@@ -128,46 +152,54 @@ class NFLService:
                     ),
                 },
             ],
-            model=self.settings.summarization_model,
-            reasoning=False,
+            text_format=SummarizationResult,
+            reasoning={"effort": "minimal"},
         )
-        return self._extract_text_response(response)
 
-    async def process(self, user_input: str) -> NFLResponse:
-        """Process an NFL stats query and return a response."""
-        base_messages = self._build_base_messages(user_input)
+        result = response.output_parsed
+        return result.is_valid, result.summary
+
+    async def _generate_and_execute(
+        self,
+        base_messages: list[dict[str, str]],
+        model: str | None = None,
+    ) -> CodeGenResult:
+        """Generate code and execute it, with retries.
+
+        Returns a CodeGenResult with success status and data or error.
+        """
         messages = list(base_messages)
         attempt = 0
         last_code = None
 
         while attempt <= self.settings.max_retries:
-            response = await self._call_llm(messages, tools=TOOLS, force_tool=True)
+            response = await self._call_llm(
+                messages, tools=TOOLS, force_tool=True, model=model
+            )
             function_call_result = self._extract_function_call(response)
 
             if function_call_result is None:
-                # Model didn't use tool despite being forced - return text response
                 text_response = self._extract_text_response(response)
-                return NFLResponse(
-                    response=text_response,
-                    code_generated=last_code,
+                return CodeGenResult(
+                    success=False,
+                    error=f"Model responded with text instead of code: {text_response}",
                     attempts=attempt + 1,
                 )
 
             _, code = function_call_result
             last_code = code
-            logger.info(f"Generated code (attempt {attempt + 1}):\n{code}")
+            logger.info(
+                f"Generated code (attempt {attempt + 1}, model={model or self.settings.model}):\n{code}"
+            )
 
             execution_result = self.code_executor.execute(code)
 
             if execution_result.success:
                 logger.info(f"Code executed successfully: {execution_result.data}")
-                summary = await self._summarize_result(
-                    user_input, execution_result.data
-                )
-                return NFLResponse(
-                    response=summary,
-                    code_generated=code,
-                    raw_data=execution_result.data,
+                return CodeGenResult(
+                    success=True,
+                    code=code,
+                    data=execution_result.data,
                     attempts=attempt + 1,
                 )
 
@@ -179,18 +211,64 @@ class NFLService:
             logger.warning(f"Code execution failed (attempt {attempt}): {error_info}")
 
             if attempt > self.settings.max_retries:
-                return NFLResponse(
-                    response=f"Failed to generate working code after {attempt} attempts. Last error: {error_info}",
-                    code_generated=code,
+                return CodeGenResult(
+                    success=False,
+                    code=code,
+                    error=error_info,
                     attempts=attempt,
                 )
 
             messages = self._build_retry_messages(base_messages, code, error_info)
 
-        return NFLResponse(
-            response="Unexpected error in processing loop",
-            code_generated=last_code,
+        return CodeGenResult(
+            success=False,
+            code=last_code,
+            error="Unexpected error in processing loop",
             attempts=attempt,
+        )
+
+    async def process(self, user_input: str) -> NFLResponse:
+        """Process an NFL stats query and return a response."""
+        base_messages = self._build_base_messages(user_input)
+
+        # Try with the default (mini) model first
+        result = await self._generate_and_execute(base_messages)
+
+        if result.success:
+            is_valid, summary = await self._summarize_result(user_input, result.data)
+
+            if is_valid:
+                return NFLResponse(
+                    response=summary,
+                    code_generated=result.code,
+                    raw_data=result.data,
+                    attempts=result.attempts,
+                )
+
+            # Data didn't pass sniff test - try with the bigger model
+            logger.warning(
+                f"Data validation failed: {summary}. Retrying with fallback model."
+            )
+            result = await self._generate_and_execute(
+                base_messages, model=self.settings.fallback_model
+            )
+
+            if result.success:
+                # Don't re-validate, just summarize (to avoid infinite loop)
+                _, summary = await self._summarize_result(user_input, result.data)
+                return NFLResponse(
+                    response=summary,
+                    code_generated=result.code,
+                    raw_data=result.data,
+                    attempts=result.attempts,
+                    used_fallback=True,
+                )
+
+        # Code generation failed
+        return NFLResponse(
+            response=f"Failed to generate working code: {result.error}",
+            code_generated=result.code,
+            attempts=result.attempts,
         )
 
     async def process_chat(self, chat_messages: list[ChatMessage]) -> NFLResponse:
@@ -202,60 +280,47 @@ class NFLService:
             )
 
         base_messages = self._build_chat_messages(chat_messages)
-        messages = list(base_messages)
-        attempt = 0
-        last_code = None
-        latest_user_input = chat_messages[-1].content if chat_messages else ""
+        latest_user_input = chat_messages[-1].content
 
-        while attempt <= self.settings.max_retries:
-            response = await self._call_llm(messages, tools=TOOLS, force_tool=True)
-            function_call_result = self._extract_function_call(response)
+        # Try with the default (mini) model first
+        result = await self._generate_and_execute(base_messages)
 
-            if function_call_result is None:
-                # Model didn't use tool despite being forced - return text response
-                text_response = self._extract_text_response(response)
+        if result.success:
+            is_valid, summary = await self._summarize_result(
+                latest_user_input, result.data
+            )
+
+            if is_valid:
                 return NFLResponse(
-                    response=text_response,
-                    code_generated=last_code,
-                    attempts=attempt + 1,
+                    response=summary,
+                    code_generated=result.code,
+                    raw_data=result.data,
+                    attempts=result.attempts,
                 )
 
-            _, code = function_call_result
-            last_code = code
-            logger.info(f"Generated code (attempt {attempt + 1}):\n{code}")
+            # Data didn't pass sniff test - try with the bigger model
+            logger.warning(
+                f"Data validation failed: {summary}. Retrying with fallback model."
+            )
+            result = await self._generate_and_execute(
+                base_messages, model=self.settings.fallback_model
+            )
 
-            execution_result: CodeExecutionResult = self.code_executor.execute(code)
-
-            if execution_result.success:
-                logger.info(f"Code executed successfully: {execution_result.data}")
-                summary = await self._summarize_result(
-                    latest_user_input, execution_result.data
+            if result.success:
+                _, summary = await self._summarize_result(
+                    latest_user_input, result.data
                 )
                 return NFLResponse(
                     response=summary,
-                    code_generated=code,
-                    raw_data=execution_result.data,
-                    attempts=attempt + 1,
+                    code_generated=result.code,
+                    raw_data=result.data,
+                    attempts=result.attempts,
+                    used_fallback=True,
                 )
 
-            attempt += 1
-            error_info = execution_result.error or "Unknown error"
-            if execution_result.traceback:
-                error_info = f"{error_info}\n{execution_result.traceback}"
-
-            logger.warning(f"Code execution failed (attempt {attempt}): {error_info}")
-
-            if attempt > self.settings.max_retries:
-                return NFLResponse(
-                    response=f"Failed to generate working code after {attempt} attempts. Last error: {error_info}",
-                    code_generated=code,
-                    attempts=attempt,
-                )
-
-            messages = self._build_retry_messages(base_messages, code, error_info)
-
+        # Code generation failed
         return NFLResponse(
-            response="Unexpected error in processing loop",
-            code_generated=last_code,
-            attempts=attempt,
+            response=f"Failed to generate working code: {result.error}",
+            code_generated=result.code,
+            attempts=result.attempts,
         )

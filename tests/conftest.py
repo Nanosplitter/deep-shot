@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from app.config.settings import Settings
+from app.models.schemas import SummarizationResult
 from app.services.code_executor import CodeExecutor
 from app.services.nfl_service import NFLService
 
@@ -13,7 +14,9 @@ from app.services.nfl_service import NFLService
 def settings():
     return Settings(
         openai_api_key="test-api-key",
-        model="gpt-5.1",
+        model="gpt-5.1-codex-mini",
+        fallback_model="gpt-5.1-codex",
+        summarization_model="gpt-5-mini",
         max_retries=2,
         current_season=2025,
         code_timeout_seconds=5,
@@ -58,6 +61,20 @@ def mock_text_response():
         mock_response = MagicMock()
         mock_response.output_text = text
         mock_response.output = []
+        return mock_response
+
+    return _create
+
+
+@pytest.fixture
+def mock_summarization_response():
+    """Create a mock response for the structured summarization output."""
+    def _create(is_valid: bool, summary: str):
+        mock_response = MagicMock()
+        mock_response.output_parsed = SummarizationResult(
+            is_valid=is_valid,
+            summary=summary,
+        )
         return mock_response
 
     return _create

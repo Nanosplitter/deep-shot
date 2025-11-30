@@ -39,6 +39,9 @@ class NFLResponse(BaseModel):
     attempts: int = Field(
         default=1, description="Number of code generation attempts made"
     )
+    used_fallback: bool = Field(
+        default=False, description="Whether the fallback model was used"
+    )
 
 
 class CodeExecutionResult(BaseModel):
@@ -48,6 +51,19 @@ class CodeExecutionResult(BaseModel):
     data: dict | None = None
     error: str | None = None
     traceback: str | None = None
+
+
+class SummarizationResult(BaseModel):
+    """Structured output from the summarization model."""
+
+    is_valid: bool = Field(
+        ...,
+        description="Whether the data appears to correctly answer the user's question",
+    )
+    summary: str = Field(
+        ...,
+        description="If valid: the natural language summary. If invalid: explanation of why the data seems wrong.",
+    )
 
 
 class CodeExecutionError(Exception):
