@@ -12,12 +12,6 @@ class ChatMessage(BaseModel):
     content: str = Field(..., description="The message content")
 
 
-class NFLInput(BaseModel):
-    """Request model for NFL stats queries."""
-
-    input: str = Field(..., description="The NFL stats question to process")
-
-
 class NFLChatInput(BaseModel):
     """Request model for multi-turn NFL stats conversations."""
 

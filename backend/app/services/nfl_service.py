@@ -226,50 +226,6 @@ class NFLService:
             attempts=attempt,
         )
 
-    async def process(self, user_input: str) -> NFLResponse:
-        """Process an NFL stats query and return a response."""
-        base_messages = self._build_base_messages(user_input)
-
-        # Try with the default (mini) model first
-        result = await self._generate_and_execute(base_messages)
-
-        if result.success:
-            is_valid, summary = await self._summarize_result(user_input, result.data)
-
-            if is_valid:
-                return NFLResponse(
-                    response=summary,
-                    code_generated=result.code,
-                    raw_data=result.data,
-                    attempts=result.attempts,
-                )
-
-            # Data didn't pass sniff test - try with the bigger model
-            logger.warning(
-                f"Data validation failed: {summary}. Retrying with fallback model."
-            )
-            result = await self._generate_and_execute(
-                base_messages, model=self.settings.fallback_model
-            )
-
-            if result.success:
-                # Don't re-validate, just summarize (to avoid infinite loop)
-                _, summary = await self._summarize_result(user_input, result.data)
-                return NFLResponse(
-                    response=summary,
-                    code_generated=result.code,
-                    raw_data=result.data,
-                    attempts=result.attempts,
-                    used_fallback=True,
-                )
-
-        # Code generation failed
-        return NFLResponse(
-            response=f"Failed to generate working code: {result.error}",
-            code_generated=result.code,
-            attempts=result.attempts,
-        )
-
     async def process_chat(self, chat_messages: list[ChatMessage]) -> NFLResponse:
         """Process a multi-turn NFL stats conversation and return a response."""
         if not chat_messages:

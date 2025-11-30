@@ -6,6 +6,5 @@ from .schemas import (
     CodeExecutionResult as CodeExecutionResult,
     CodeValidationError as CodeValidationError,
     NFLChatInput as NFLChatInput,
-    NFLInput as NFLInput,
     NFLResponse as NFLResponse,
 )

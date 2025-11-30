@@ -24,7 +24,6 @@ def test_settings():
 @pytest.fixture
 def mock_nfl_service():
     service = MagicMock()
-    service.process = AsyncMock()
     service.process_chat = AsyncMock()
     return service
 
@@ -45,69 +44,6 @@ class TestHealthEndpoint:
 
         assert response.status_code == 200
         assert response.json() == {"status": "healthy"}
-
-
-class TestProcessEndpoint:
-    def test_process_valid_input_returns_response(self, client, mock_nfl_service):
-        mock_nfl_service.process.return_value = NFLResponse(
-            response="The answer is 42",
-            code_generated=None,
-            raw_data=None,
-            attempts=1,
-        )
-
-        response = client.post("/nfl/process", json={"input": "How many touchdowns?"})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["response"] == "The answer is 42"
-
-    def test_process_with_code_generation_returns_code_and_data(
-        self, client, mock_nfl_service
-    ):
-        mock_nfl_service.process.return_value = NFLResponse(
-            response="There were 42 touchdowns",
-            code_generated='def run(): return {"response": 42}',
-            raw_data={"response": 42},
-            attempts=1,
-        )
-
-        response = client.post("/nfl/process", json={"input": "How many touchdowns?"})
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["response"] == "There were 42 touchdowns"
-        assert data["raw_data"] == {"response": 42}
-        assert data["code_generated"] is not None
-
-    def test_process_missing_input_returns_422(self, client):
-        response = client.post("/nfl/process", json={})
-
-        assert response.status_code == 422
-
-    def test_process_llm_error_returns_500(self, client, mock_nfl_service):
-        mock_nfl_service.process.side_effect = Exception("API Error")
-
-        response = client.post("/nfl/process", json={"input": "Test question"})
-
-        assert response.status_code == 500
-
-
-class TestResponseSchema:
-    def test_response_matches_nfl_response_schema(self, client, mock_nfl_service):
-        mock_nfl_service.process.return_value = NFLResponse(
-            response="Test response",
-            code_generated=None,
-            raw_data=None,
-            attempts=1,
-        )
-
-        response = client.post("/nfl/process", json={"input": "Test"})
-
-        data = response.json()
-        nfl_response = NFLResponse(**data)
-        assert nfl_response.response == "Test response"
-        assert nfl_response.attempts >= 1
 
 
 class TestChatEndpoint:

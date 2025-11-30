@@ -254,8 +254,9 @@ class TestProcessWithValidation:
         mock_openai_client.responses.parse = AsyncMock(
             return_value=mock_summarization_response(True, "The team scored 42 points")
         )
+        messages = [ChatMessage(role="user", content="How many points?")]
 
-        result = await nfl_service.process("How many points?")
+        result = await nfl_service.process_chat(messages)
 
         assert result.response == "The team scored 42 points"
         assert result.used_fallback is False
@@ -289,8 +290,9 @@ class TestProcessWithValidation:
                 mock_summarization_response(True, "Patrick Mahomes has 25 TDs"),
             ]
         )
+        messages = [ChatMessage(role="user", content="How many TDs does Mahomes have?")]
 
-        result = await nfl_service.process("How many TDs does Mahomes have?")
+        result = await nfl_service.process_chat(messages)
 
         assert result.used_fallback is True
         assert "25 TDs" in result.response
@@ -315,8 +317,9 @@ class TestProcessWithValidation:
                 mock_summarization_response(True, "Corrected answer"),
             ]
         )
+        messages = [ChatMessage(role="user", content="Question")]
 
-        await nfl_service.process("Question")
+        await nfl_service.process_chat(messages)
 
         # Check that fallback model was used in second call
         call_args_list = nfl_service._call_llm.call_args_list
@@ -340,8 +343,9 @@ class TestProcessWithValidation:
         nfl_service.code_executor.execute = MagicMock(
             return_value=CodeExecutionResult(success=False, error="SyntaxError")
         )
+        messages = [ChatMessage(role="user", content="Question")]
 
-        result = await nfl_service.process("Question")
+        result = await nfl_service.process_chat(messages)
 
         assert "Failed to generate working code" in result.response
 
