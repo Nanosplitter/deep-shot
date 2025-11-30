@@ -1,10 +1,9 @@
 """Unit tests for NFLService."""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 from app.models.schemas import ChatMessage, CodeExecutionResult, SummarizationResult
-from app.services.nfl_service import CodeGenResult
 
 
 class TestNFLServiceBuildMessages:
@@ -161,13 +160,17 @@ class TestGenerateAndExecute:
         self, nfl_service, mock_function_call_response
     ):
         nfl_service._call_llm = AsyncMock(
-            return_value=mock_function_call_response('def run():\n    return {"value": 42}')
+            return_value=mock_function_call_response(
+                'def run():\n    return {"value": 42}'
+            )
         )
         nfl_service.code_executor.execute = MagicMock(
             return_value=CodeExecutionResult(success=True, data={"value": 42})
         )
 
-        result = await nfl_service._generate_and_execute([{"role": "user", "content": "test"}])
+        result = await nfl_service._generate_and_execute(
+            [{"role": "user", "content": "test"}]
+        )
 
         assert result.success is True
         assert result.data == {"value": 42}
@@ -190,7 +193,9 @@ class TestGenerateAndExecute:
             ]
         )
 
-        result = await nfl_service._generate_and_execute([{"role": "user", "content": "test"}])
+        result = await nfl_service._generate_and_execute(
+            [{"role": "user", "content": "test"}]
+        )
 
         assert result.success is True
         assert result.attempts == 2
@@ -206,26 +211,25 @@ class TestGenerateAndExecute:
             return_value=CodeExecutionResult(success=False, error="NameError")
         )
 
-        result = await nfl_service._generate_and_execute([{"role": "user", "content": "test"}])
+        result = await nfl_service._generate_and_execute(
+            [{"role": "user", "content": "test"}]
+        )
 
         assert result.success is False
         assert result.attempts == 3  # max_retries=2 means 3 total attempts
         assert "NameError" in result.error
 
     @pytest.mark.asyncio
-    async def test_uses_specified_model(
-        self, nfl_service, mock_function_call_response
-    ):
+    async def test_uses_specified_model(self, nfl_service, mock_function_call_response):
         nfl_service._call_llm = AsyncMock(
-            return_value=mock_function_call_response('def run(): return {}')
+            return_value=mock_function_call_response("def run(): return {}")
         )
         nfl_service.code_executor.execute = MagicMock(
             return_value=CodeExecutionResult(success=True, data={})
         )
 
         await nfl_service._generate_and_execute(
-            [{"role": "user", "content": "test"}],
-            model="gpt-5.1-codex"
+            [{"role": "user", "content": "test"}], model="gpt-5.1-codex"
         )
 
         call_kwargs = nfl_service._call_llm.call_args[1]
@@ -235,7 +239,11 @@ class TestGenerateAndExecute:
 class TestProcessWithValidation:
     @pytest.mark.asyncio
     async def test_valid_data_returns_summary(
-        self, nfl_service, mock_function_call_response, mock_summarization_response, mock_openai_client
+        self,
+        nfl_service,
+        mock_function_call_response,
+        mock_summarization_response,
+        mock_openai_client,
     ):
         nfl_service._call_llm = AsyncMock(
             return_value=mock_function_call_response('def run(): return {"points": 42}')
@@ -255,21 +263,25 @@ class TestProcessWithValidation:
 
     @pytest.mark.asyncio
     async def test_invalid_data_triggers_fallback(
-        self, nfl_service, mock_function_call_response, mock_summarization_response, mock_openai_client
+        self,
+        nfl_service,
+        mock_function_call_response,
+        mock_summarization_response,
+        mock_openai_client,
     ):
         # First attempt: mini model generates bad code/data
         # Second attempt: fallback model generates good code/data
         call_count = [0]
-        
+
         def mock_call_llm(*args, **kwargs):
             call_count[0] += 1
             return mock_function_call_response('def run(): return {"tds": 0}')
-        
+
         nfl_service._call_llm = AsyncMock(side_effect=mock_call_llm)
         nfl_service.code_executor.execute = MagicMock(
             return_value=CodeExecutionResult(success=True, data={"tds": 0})
         )
-        
+
         # First summarization: invalid, second: valid
         mock_openai_client.responses.parse = AsyncMock(
             side_effect=[
@@ -285,7 +297,11 @@ class TestProcessWithValidation:
 
     @pytest.mark.asyncio
     async def test_fallback_uses_correct_model(
-        self, nfl_service, mock_function_call_response, mock_summarization_response, mock_openai_client
+        self,
+        nfl_service,
+        mock_function_call_response,
+        mock_summarization_response,
+        mock_openai_client,
     ):
         nfl_service._call_llm = AsyncMock(
             return_value=mock_function_call_response('def run(): return {"data": 0}')
@@ -312,10 +328,14 @@ class TestProcessWithValidation:
 
     @pytest.mark.asyncio
     async def test_fallback_failure_returns_error(
-        self, nfl_service, mock_function_call_response, mock_summarization_response, mock_openai_client
+        self,
+        nfl_service,
+        mock_function_call_response,
+        mock_summarization_response,
+        mock_openai_client,
     ):
         nfl_service._call_llm = AsyncMock(
-            return_value=mock_function_call_response('def run(): return bad')
+            return_value=mock_function_call_response("def run(): return bad")
         )
         nfl_service.code_executor.execute = MagicMock(
             return_value=CodeExecutionResult(success=False, error="SyntaxError")
@@ -336,7 +356,11 @@ class TestProcessChat:
 
     @pytest.mark.asyncio
     async def test_process_chat_valid_data_returns_summary(
-        self, nfl_service, mock_function_call_response, mock_summarization_response, mock_openai_client
+        self,
+        nfl_service,
+        mock_function_call_response,
+        mock_summarization_response,
+        mock_openai_client,
     ):
         nfl_service._call_llm = AsyncMock(
             return_value=mock_function_call_response('def run(): return {"yards": 150}')
@@ -358,7 +382,11 @@ class TestProcessChat:
 
     @pytest.mark.asyncio
     async def test_process_chat_invalid_data_triggers_fallback(
-        self, nfl_service, mock_function_call_response, mock_summarization_response, mock_openai_client
+        self,
+        nfl_service,
+        mock_function_call_response,
+        mock_summarization_response,
+        mock_openai_client,
     ):
         nfl_service._call_llm = AsyncMock(
             return_value=mock_function_call_response('def run(): return {"data": 0}')
@@ -425,9 +453,7 @@ class TestLLMCalls:
         assert "tools" not in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_call_llm_with_custom_model(
-        self, nfl_service, mock_openai_client
-    ):
+    async def test_call_llm_with_custom_model(self, nfl_service, mock_openai_client):
         mock_openai_client.responses.create = AsyncMock(return_value=MagicMock())
 
         await nfl_service._call_llm(
@@ -438,9 +464,7 @@ class TestLLMCalls:
         assert call_kwargs["model"] == "custom-model"
 
     @pytest.mark.asyncio
-    async def test_call_llm_reasoning_disabled(
-        self, nfl_service, mock_openai_client
-    ):
+    async def test_call_llm_reasoning_disabled(self, nfl_service, mock_openai_client):
         mock_openai_client.responses.create = AsyncMock(return_value=MagicMock())
 
         await nfl_service._call_llm(
@@ -448,4 +472,4 @@ class TestLLMCalls:
         )
 
         call_kwargs = mock_openai_client.responses.create.call_args[1]
-        assert call_kwargs["reasoning"] == {"effort": "minimal"}
+        assert call_kwargs["reasoning"] == {"effort": "low"}

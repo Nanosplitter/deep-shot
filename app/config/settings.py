@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     summarization_model: str = "gpt-5-mini"
     max_retries: int = 3
     current_season: int = 2025
-    code_timeout_seconds: int = 30
+    code_timeout_seconds: int = 60
 
 
 @lru_cache

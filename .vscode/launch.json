@@ -7,7 +7,7 @@
       "request": "launch",
       "module": "uvicorn",
       "args": ["app.main:app", "--reload", "--port", "8000"],
-      "cwd": "${workspaceFolder}/backend",
+      "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true,
       "consoleName": "Backend"
@@ -18,7 +18,7 @@
       "request": "launch",
       "module": "streamlit",
       "args": ["run", "streamlit_app.py"],
-      "cwd": "${workspaceFolder}/backend",
+      "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true,
       "consoleName": "Frontend"

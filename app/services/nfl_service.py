@@ -17,7 +17,6 @@ from app.config.tools import TOOLS
 from app.models.schemas import (
     ChatMessage,
     NFLResponse,
-    CodeExecutionResult,
     SummarizationResult,
 )
 from app.services.code_executor import CodeExecutor
@@ -119,7 +118,7 @@ class NFLService:
             "input": messages,
         }
         if not reasoning:
-            kwargs["reasoning"] = {"effort": "minimal"}
+            kwargs["reasoning"] = {"effort": "low"}
         if tools:
             kwargs["tools"] = tools
             if force_tool:
@@ -153,7 +152,7 @@ class NFLService:
                 },
             ],
             text_format=SummarizationResult,
-            reasoning={"effort": "minimal"},
+            reasoning={"effort": "low"},
         )
 
         result = response.output_parsed
