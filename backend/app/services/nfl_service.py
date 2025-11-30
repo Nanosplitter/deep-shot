@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 
 from app.config.prompts import (
     get_system_prompt,
-    get_docs_prompt,
+    get_retry_prompt,
     get_summarization_prompt,
 )
 from app.config.settings import Settings
@@ -34,7 +34,6 @@ class NFLService:
                 "role": "system",
                 "content": get_system_prompt(self.settings.current_season),
             },
-            {"role": "system", "content": get_docs_prompt()},
             {"role": "user", "content": user_input},
         ]
 
@@ -45,7 +44,6 @@ class NFLService:
                 "role": "system",
                 "content": get_system_prompt(self.settings.current_season),
             },
-            {"role": "system", "content": get_docs_prompt()},
         ]
         conversation = [{"role": msg.role, "content": msg.content} for msg in messages]
         return base + conversation
@@ -60,24 +58,11 @@ class NFLService:
         return base_messages + [
             {
                 "role": "assistant",
-                "content": (
-                    "I attempted to call run_nflreadpy_code with the following "
-                    "code, but it caused a Python error when executed."
-                ),
-            },
-            {
-                "role": "assistant",
                 "content": f"```python\n{code}\n```",
             },
             {
                 "role": "user",
-                "content": (
-                    "When I ran that code, I got this error:\n"
-                    f"```text\n{error_traceback}\n```\n"
-                    "Please fix the code and try again. Only use documented "
-                    "nflreadpy.load_* functions and Polars idioms from the "
-                    "cheat sheet and docs."
-                ),
+                "content": get_retry_prompt(error_traceback),
             },
         ]
 
@@ -107,15 +92,21 @@ class NFLService:
         self,
         messages: list[dict[str, str]],
         tools: list[dict] | None = None,
+        force_tool: bool = False,
     ) -> Any:
         """Make an async call to the OpenAI API."""
         kwargs = {
             "model": self.settings.model,
             "input": messages,
-            "text": {"verbosity": "low"},
         }
         if tools:
             kwargs["tools"] = tools
+            if force_tool:
+                # Force the model to use the tool instead of responding with text
+                kwargs["tool_choice"] = {
+                    "type": "function",
+                    "name": "run_nflreadpy_code",
+                }
 
         return await self.client.responses.create(**kwargs)
 
@@ -144,10 +135,11 @@ class NFLService:
         last_code = None
 
         while attempt <= self.settings.max_retries:
-            response = await self._call_llm(messages, tools=TOOLS)
+            response = await self._call_llm(messages, tools=TOOLS, force_tool=True)
             function_call_result = self._extract_function_call(response)
 
             if function_call_result is None:
+                # Model didn't use tool despite being forced - return text response
                 text_response = self._extract_text_response(response)
                 return NFLResponse(
                     response=text_response,
@@ -159,7 +151,7 @@ class NFLService:
             last_code = code
             logger.info(f"Generated code (attempt {attempt + 1}):\n{code}")
 
-            execution_result: CodeExecutionResult = self.code_executor.execute(code)
+            execution_result = self.code_executor.execute(code)
 
             if execution_result.success:
                 logger.info(f"Code executed successfully: {execution_result.data}")
@@ -210,10 +202,11 @@ class NFLService:
         latest_user_input = chat_messages[-1].content if chat_messages else ""
 
         while attempt <= self.settings.max_retries:
-            response = await self._call_llm(messages, tools=TOOLS)
+            response = await self._call_llm(messages, tools=TOOLS, force_tool=True)
             function_call_result = self._extract_function_call(response)
 
             if function_call_result is None:
+                # Model didn't use tool despite being forced - return text response
                 text_response = self._extract_text_response(response)
                 return NFLResponse(
                     response=text_response,

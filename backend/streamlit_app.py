@@ -77,11 +77,10 @@ with st.sidebar:
 
     st.header("💡 Try asking...")
     example_queries = [
-        "How many touchdowns did the Lions score?",
-        "Who leads the league in passing yards?",
-        "What's Patrick Mahomes' passer rating?",
-        "Compare rushing yards for the top 5 RBs",
-        "Which team has the best defense?",
+        "How many touchdowns have the Lions scored this year?",
+        "Who has the highest passer rating in the NFL this season?",
+        "Show me the top 5 rushers in the NFL for 2025.",
+        "What is the average yards per reception for wide receivers in 2022?",
     ]
 
     for query in example_queries:
