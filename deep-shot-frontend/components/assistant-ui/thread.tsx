@@ -17,6 +17,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAssistantState,
   useMessage,
 } from "@assistant-ui/react";
 
@@ -234,12 +235,18 @@ const MessageError: FC = () => {
   );
 };
 
-// Simple loading indicator shown before any parts are rendered
-// The Reasoning component will show the actual status updates
-const LoadingStatusIndicator: FC = () => {
-  // This component is now mostly a fallback - Reasoning handles status display
-  // We can remove it entirely if Reasoning is working properly
-  return null;
+// Loading dot indicator that appears outside of reasoning content
+const LoadingIndicator: FC = () => {
+  const message = useAssistantState(({ message }) => message);
+  const isRunning = message.status?.type === "running";
+
+  if (!isRunning) return null;
+
+  return (
+    <span className="aui-dot-wrapper ml-1 inline-block">
+      <span className="aui-dot" />
+    </span>
+  );
 };
 
 const AssistantMessage: FC = () => {
@@ -250,7 +257,6 @@ const AssistantMessage: FC = () => {
         data-role="assistant"
       >
         <div className="aui-assistant-message-content mx-2 leading-7 break-words text-foreground">
-          <LoadingStatusIndicator />
           <MessagePrimitive.Parts
             components={{
               Text: MarkdownText,
@@ -262,6 +268,7 @@ const AssistantMessage: FC = () => {
               },
             }}
           />
+          <LoadingIndicator />
           <MessageError />
         </div>
 

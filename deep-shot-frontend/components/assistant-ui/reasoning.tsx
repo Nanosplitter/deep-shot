@@ -24,6 +24,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useSettings } from "@/lib/settings-context";
 
 const ANIMATION_DURATION = 200;
 const SHIMMER_DURATION = 1000;
@@ -96,10 +97,11 @@ const GradientFade: FC<{ className?: string }> = ({ className }) => (
  * Trigger button for the Reasoning collapsible.
  * Composed of icons, label, and text shimmer animation when reasoning is being streamed.
  */
-const ReasoningTrigger: FC<{ active: boolean; className?: string }> = ({
-  active,
-  className,
-}) => (
+const ReasoningTrigger: FC<{
+  active: boolean;
+  label: string;
+  className?: string;
+}> = ({ active, label, className }) => (
   <CollapsibleTrigger
     className={cn(
       "aui-reasoning-trigger group/trigger -mb-2 flex max-w-[75%] items-center gap-2 py-2 text-sm text-muted-foreground transition-colors hover:text-foreground",
@@ -108,7 +110,7 @@ const ReasoningTrigger: FC<{ active: boolean; className?: string }> = ({
   >
     <BrainIcon className="aui-reasoning-trigger-icon size-4 shrink-0" />
     <span className="aui-reasoning-trigger-label-wrapper relative inline-block leading-none">
-      <span>Crunching the numbers</span>
+      <span>{label}</span>
       {active ? (
         <span
           aria-hidden
@@ -119,7 +121,7 @@ const ReasoningTrigger: FC<{ active: boolean; className?: string }> = ({
             "bg-[linear-gradient(90deg,transparent_0%,transparent_40%,color-mix(in_oklch,var(--foreground)_75%,transparent)_56%,transparent_80%,transparent_100%)]",
           )}
         >
-          Crunching the numbers
+          {label}
         </span>
       ) : null}
     </span>
@@ -237,6 +239,8 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
   startIndex,
   endIndex,
 }) => {
+  const { debugMode } = useSettings();
+
   /**
    * Detects if reasoning is currently streaming within this group's range.
    */
@@ -249,9 +253,40 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
     return lastIndex >= startIndex && lastIndex <= endIndex;
   });
 
+  /**
+   * Extracts the latest status label from the reasoning parts.
+   * Status messages are formatted as "**Title**\nDetail", so we extract the title.
+   */
+  const statusLabel = useAssistantState(({ message }) => {
+    // Find the last reasoning part in this group's range
+    for (
+      let i = Math.min(endIndex, message.parts.length - 1);
+      i >= startIndex;
+      i--
+    ) {
+      const part = message.parts[i];
+      if (part?.type === "reasoning" && "text" in part && part.text) {
+        // Extract the title from "**Title**\nDetail" format
+        const match = part.text.match(/^\*\*(.+?)\*\*/);
+        if (match) {
+          return match[1];
+        }
+      }
+    }
+    return "Crunching the numbers";
+  });
+
+  // Hide reasoning section when not streaming and debug mode is off
+  if (!isReasoningStreaming && !debugMode) {
+    return null;
+  }
+
+  // Determine final label: show "Crunched the numbers" when done
+  const label = isReasoningStreaming ? statusLabel : "Crunched the numbers";
+
   return (
     <ReasoningRoot>
-      <ReasoningTrigger active={isReasoningStreaming} />
+      <ReasoningTrigger active={isReasoningStreaming} label={label} />
 
       <ReasoningContent aria-busy={isReasoningStreaming}>
         <ReasoningText>{children}</ReasoningText>
