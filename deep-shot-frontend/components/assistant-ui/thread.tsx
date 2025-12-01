@@ -17,6 +17,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useMessage,
 } from "@assistant-ui/react";
 
 import type { FC } from "react";
@@ -240,6 +241,14 @@ const MessageError: FC = () => {
   );
 };
 
+// Simple loading indicator shown before any parts are rendered
+// The Reasoning component will show the actual status updates
+const LoadingStatusIndicator: FC = () => {
+  // This component is now mostly a fallback - Reasoning handles status display
+  // We can remove it entirely if Reasoning is working properly
+  return null;
+};
+
 const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root asChild>
@@ -248,12 +257,16 @@ const AssistantMessage: FC = () => {
         data-role="assistant"
       >
         <div className="aui-assistant-message-content mx-2 leading-7 break-words text-foreground">
+          <LoadingStatusIndicator />
           <MessagePrimitive.Parts
             components={{
               Text: MarkdownText,
               Reasoning: Reasoning,
               ReasoningGroup: ReasoningGroup,
-              tools: { nfl_query: NFLQueryTool, Fallback: ToolFallback },
+              tools: {
+                by_name: { nfl_query: NFLQueryTool },
+                Fallback: ToolFallback,
+              },
             }}
           />
           <MessageError />

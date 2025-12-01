@@ -75,3 +75,18 @@ class CodeValidationError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
         self.message = message
+
+
+class StreamEvent(BaseModel):
+    """Event model for streaming progress updates."""
+
+    event: str = Field(..., description="Event type: 'status', 'complete', or 'error'")
+    step: str = Field(
+        ...,
+        description="Current step: 'analyzing', 'generating', 'executing', 'retrying', 'validating', 'summarizing', 'fallback'",
+    )
+    message: str = Field(..., description="User-friendly status message")
+    attempt: int | None = Field(default=None, description="Current attempt number")
+    data: NFLResponse | None = Field(
+        default=None, description="Final response data when complete"
+    )

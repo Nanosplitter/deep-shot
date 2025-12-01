@@ -17,9 +17,11 @@ from app.config.tools import TOOLS
 from app.models.schemas import (
     ChatMessage,
     NFLResponse,
+    StreamEvent,
     SummarizationResult,
 )
 from app.services.code_executor import CodeExecutor
+from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -278,4 +280,237 @@ class NFLService:
             response=f"Failed to generate working code: {result.error}",
             code_generated=result.code,
             attempts=result.attempts,
+        )
+
+    async def process_chat_streaming(
+        self, chat_messages: list[ChatMessage]
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """Process a chat with streaming progress updates."""
+        if not chat_messages:
+            yield StreamEvent(
+                event="error",
+                step="analyzing",
+                message="No messages provided",
+            )
+            return
+
+        base_messages = self._build_chat_messages(chat_messages)
+        latest_user_input = chat_messages[-1].content
+
+        # Step 1: Analyzing
+        yield StreamEvent(
+            event="status",
+            step="analyzing",
+            message="🔍 Analyzing your question...",
+        )
+
+        # Try with the default (mini) model first
+        messages = list(base_messages)
+        attempt = 0
+        last_code = None
+        result = None
+
+        while attempt <= self.settings.max_retries:
+            # Step 2: Generating code
+            yield StreamEvent(
+                event="status",
+                step="generating",
+                message="⚙️ Generating code..."
+                if attempt == 0
+                else f"✨ Refining approach (attempt {attempt + 1})...",
+                attempt=attempt + 1,
+            )
+
+            response = await self._call_llm(messages, tools=TOOLS, force_tool=True)
+            function_call_result = self._extract_function_call(response)
+
+            if function_call_result is None:
+                text_response = self._extract_text_response(response)
+                yield StreamEvent(
+                    event="error",
+                    step="generating",
+                    message=f"Model responded with text instead of code",
+                )
+                return
+
+            _, code = function_call_result
+            last_code = code
+
+            # Step 3: Executing
+            yield StreamEvent(
+                event="status",
+                step="executing",
+                message="⚡ Running the analysis...",
+                attempt=attempt + 1,
+            )
+
+            execution_result = self.code_executor.execute(code)
+
+            if execution_result.success:
+                result = CodeGenResult(
+                    success=True,
+                    code=code,
+                    data=execution_result.data,
+                    attempts=attempt + 1,
+                )
+                break
+
+            attempt += 1
+            error_info = execution_result.error or "Unknown error"
+            if execution_result.traceback:
+                error_info = f"{error_info}\n{execution_result.traceback}"
+
+            logger.warning(f"Code execution failed (attempt {attempt}): {error_info}")
+
+            if attempt > self.settings.max_retries:
+                result = CodeGenResult(
+                    success=False,
+                    code=code,
+                    error=error_info,
+                    attempts=attempt,
+                )
+                break
+
+            # Step 4: Retrying
+            yield StreamEvent(
+                event="status",
+                step="retrying",
+                message="✨ Trying another approach...",
+                attempt=attempt + 1,
+            )
+            messages = self._build_retry_messages(base_messages, code, error_info)
+
+        if result is None:
+            result = CodeGenResult(
+                success=False,
+                code=last_code,
+                error="Unexpected error in processing loop",
+                attempts=attempt,
+            )
+
+        if result.success:
+            # Step 5: Validating
+            yield StreamEvent(
+                event="status",
+                step="validating",
+                message="✅ Checking the results...",
+            )
+
+            is_valid, summary = await self._summarize_result(
+                latest_user_input, result.data
+            )
+
+            if is_valid:
+                # Step 6: Complete
+                yield StreamEvent(
+                    event="complete",
+                    step="summarizing",
+                    message="📝 Preparing your answer...",
+                    data=NFLResponse(
+                        response=summary,
+                        code_generated=result.code,
+                        raw_data=result.data,
+                        attempts=result.attempts,
+                    ),
+                )
+                return
+
+            # Data didn't pass sniff test - try with the bigger model
+            logger.warning(
+                f"Data validation failed: {summary}. Retrying with fallback model."
+            )
+
+            yield StreamEvent(
+                event="status",
+                step="fallback",
+                message="🔄 Using advanced analysis...",
+            )
+
+            # Retry with fallback model
+            fallback_messages = list(base_messages)
+            fallback_attempt = 0
+
+            while fallback_attempt <= self.settings.max_retries:
+                yield StreamEvent(
+                    event="status",
+                    step="generating",
+                    message=f"⚙️ Generating improved code...",
+                    attempt=fallback_attempt + 1,
+                )
+
+                response = await self._call_llm(
+                    fallback_messages,
+                    tools=TOOLS,
+                    force_tool=True,
+                    model=self.settings.fallback_model,
+                )
+                function_call_result = self._extract_function_call(response)
+
+                if function_call_result is None:
+                    break
+
+                _, code = function_call_result
+
+                yield StreamEvent(
+                    event="status",
+                    step="executing",
+                    message="⚡ Running the analysis...",
+                    attempt=fallback_attempt + 1,
+                )
+
+                execution_result = self.code_executor.execute(code)
+
+                if execution_result.success:
+                    yield StreamEvent(
+                        event="status",
+                        step="validating",
+                        message="✅ Checking the results...",
+                    )
+
+                    _, summary = await self._summarize_result(
+                        latest_user_input, execution_result.data
+                    )
+
+                    yield StreamEvent(
+                        event="complete",
+                        step="summarizing",
+                        message="📝 Preparing your answer...",
+                        data=NFLResponse(
+                            response=summary,
+                            code_generated=code,
+                            raw_data=execution_result.data,
+                            attempts=result.attempts + fallback_attempt + 1,
+                            used_fallback=True,
+                        ),
+                    )
+                    return
+
+                fallback_attempt += 1
+                error_info = execution_result.error or "Unknown error"
+                if execution_result.traceback:
+                    error_info = f"{error_info}\n{execution_result.traceback}"
+
+                if fallback_attempt > self.settings.max_retries:
+                    break
+
+                yield StreamEvent(
+                    event="status",
+                    step="retrying",
+                    message="✨ Trying another approach...",
+                    attempt=fallback_attempt + 1,
+                )
+                fallback_messages = self._build_retry_messages(
+                    base_messages, code, error_info
+                )
+
+        # Code generation failed
+        yield StreamEvent(
+            event="error",
+            step="generating",
+            message=f"Unable to find the data you requested. Please try rephrasing your question.",
+            data=NFLResponse(
+                response=f"Failed to generate working code: {result.error}",
+                code_generated=result.code,
+                attempts=result.attempts,
+            ),
         )
