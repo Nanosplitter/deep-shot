@@ -239,7 +239,8 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
   startIndex,
   endIndex,
 }) => {
-  const { debugMode } = useSettings();
+  const { settings } = useSettings();
+  const debugMode = settings.debugMode;
 
   /**
    * Detects if reasoning is currently streaming within this group's range.

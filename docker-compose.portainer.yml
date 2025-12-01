@@ -1,0 +1,51 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://deepshot.nanosplitter.com}
+      - MODEL=${MODEL:-gpt-5.1-codex-mini}
+      - FALLBACK_MODEL=${FALLBACK_MODEL:-gpt-5.1-codex}
+      - SUMMARIZATION_MODEL=${SUMMARIZATION_MODEL:-gpt-5-mini}
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - CURRENT_SEASON=${CURRENT_SEASON:-2025}
+      - CODE_TIMEOUT_SECONDS=${CODE_TIMEOUT_SECONDS:-60}
+    networks:
+      - deepshot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./deep-shot-frontend
+      dockerfile: Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - deepshot-network
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    networks:
+      - deepshot-network
+    restart: unless-stopped
+    depends_on:
+      - frontend
+
+networks:
+  deepshot-network:
+    driver: bridge
