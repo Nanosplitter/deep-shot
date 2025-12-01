@@ -108,7 +108,7 @@ const ReasoningTrigger: FC<{ active: boolean; className?: string }> = ({
   >
     <BrainIcon className="aui-reasoning-trigger-icon size-4 shrink-0" />
     <span className="aui-reasoning-trigger-label-wrapper relative inline-block leading-none">
-      <span>Reasoning</span>
+      <span>Crunching the numbers</span>
       {active ? (
         <span
           aria-hidden
@@ -119,7 +119,7 @@ const ReasoningTrigger: FC<{ active: boolean; className?: string }> = ({
             "bg-[linear-gradient(90deg,transparent_0%,transparent_40%,color-mix(in_oklch,var(--foreground)_75%,transparent)_56%,transparent_80%,transparent_100%)]",
           )}
         >
-          Reasoning
+          Crunching the numbers
         </span>
       ) : null}
     </span>

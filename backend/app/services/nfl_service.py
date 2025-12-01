@@ -301,10 +301,16 @@ class NFLService:
         yield StreamEvent(
             event="status",
             step="analyzing",
-            message="🔍 Analyzing your question...",
+            message="Analyzing Question",
+            detail=f'Understanding what you\'re asking about: "{latest_user_input[:100]}{"..." if len(latest_user_input) > 100 else ""}"',
         )
 
         # Try with the default (mini) model first
+        model_name = (
+            self.settings.model.split("/")[-1]
+            if "/" in self.settings.model
+            else self.settings.model
+        )
         messages = list(base_messages)
         attempt = 0
         last_code = None
@@ -315,9 +321,8 @@ class NFLService:
             yield StreamEvent(
                 event="status",
                 step="generating",
-                message="⚙️ Generating code..."
-                if attempt == 0
-                else f"✨ Refining approach (attempt {attempt + 1})...",
+                message="Generating Code" if attempt == 0 else f"Retry #{attempt + 1}",
+                detail=f"Using {model_name} to write Python code that queries NFL stats using nflreadpy",
                 attempt=attempt + 1,
             )
 
@@ -329,18 +334,23 @@ class NFLService:
                 yield StreamEvent(
                     event="error",
                     step="generating",
-                    message=f"Model responded with text instead of code",
+                    message="Generation Failed",
+                    detail="Model responded with text instead of executable code",
                 )
                 return
 
             _, code = function_call_result
             last_code = code
 
+            # Extract some info about the code for the status
+            code_lines = len(code.strip().split("\n"))
+
             # Step 3: Executing
             yield StreamEvent(
                 event="status",
                 step="executing",
-                message="⚡ Running the analysis...",
+                message="Executing Code",
+                detail=f"Running {code_lines}-line Python script to fetch and analyze NFL data",
                 attempt=attempt + 1,
             )
 
@@ -372,10 +382,12 @@ class NFLService:
                 break
 
             # Step 4: Retrying
+            short_error = error_info.split("\n")[0][:80]
             yield StreamEvent(
                 event="status",
                 step="retrying",
-                message="✨ Trying another approach...",
+                message="Fixing Error",
+                detail=f"Code had an issue: {short_error}. Generating improved version...",
                 attempt=attempt + 1,
             )
             messages = self._build_retry_messages(base_messages, code, error_info)
@@ -393,7 +405,8 @@ class NFLService:
             yield StreamEvent(
                 event="status",
                 step="validating",
-                message="✅ Checking the results...",
+                message="Validating Results",
+                detail="Checking that the data correctly answers your question",
             )
 
             is_valid, summary = await self._summarize_result(
@@ -405,7 +418,8 @@ class NFLService:
                 yield StreamEvent(
                     event="complete",
                     step="summarizing",
-                    message="📝 Preparing your answer...",
+                    message="Complete",
+                    detail=f"Successfully answered your question in {result.attempts} attempt(s)",
                     data=NFLResponse(
                         response=summary,
                         code_generated=result.code,
@@ -420,10 +434,17 @@ class NFLService:
                 f"Data validation failed: {summary}. Retrying with fallback model."
             )
 
+            fallback_model_name = (
+                self.settings.fallback_model.split("/")[-1]
+                if "/" in self.settings.fallback_model
+                else self.settings.fallback_model
+            )
+
             yield StreamEvent(
                 event="status",
                 step="fallback",
-                message="🔄 Using advanced analysis...",
+                message="Switching Models",
+                detail=f"Initial results didn't look right. Upgrading to {fallback_model_name} for better accuracy",
             )
 
             # Retry with fallback model
@@ -434,7 +455,10 @@ class NFLService:
                 yield StreamEvent(
                     event="status",
                     step="generating",
-                    message=f"⚙️ Generating improved code...",
+                    message="Generating Code"
+                    if fallback_attempt == 0
+                    else f"Retry #{fallback_attempt + 1}",
+                    detail=f"Using {fallback_model_name} to write improved Python code",
                     attempt=fallback_attempt + 1,
                 )
 
@@ -450,11 +474,13 @@ class NFLService:
                     break
 
                 _, code = function_call_result
+                code_lines = len(code.strip().split("\n"))
 
                 yield StreamEvent(
                     event="status",
                     step="executing",
-                    message="⚡ Running the analysis...",
+                    message="Executing Code",
+                    detail=f"Running {code_lines}-line Python script with {fallback_model_name}",
                     attempt=fallback_attempt + 1,
                 )
 
@@ -464,22 +490,25 @@ class NFLService:
                     yield StreamEvent(
                         event="status",
                         step="validating",
-                        message="✅ Checking the results...",
+                        message="Validating Results",
+                        detail="Checking that the data correctly answers your question",
                     )
 
                     _, summary = await self._summarize_result(
                         latest_user_input, execution_result.data
                     )
 
+                    total_attempts = result.attempts + fallback_attempt + 1
                     yield StreamEvent(
                         event="complete",
                         step="summarizing",
-                        message="📝 Preparing your answer...",
+                        message="Complete",
+                        detail=f"Successfully answered using {fallback_model_name} after {total_attempts} total attempt(s)",
                         data=NFLResponse(
                             response=summary,
                             code_generated=code,
                             raw_data=execution_result.data,
-                            attempts=result.attempts + fallback_attempt + 1,
+                            attempts=total_attempts,
                             used_fallback=True,
                         ),
                     )
@@ -493,10 +522,12 @@ class NFLService:
                 if fallback_attempt > self.settings.max_retries:
                     break
 
+                short_error = error_info.split("\n")[0][:80]
                 yield StreamEvent(
                     event="status",
                     step="retrying",
-                    message="✨ Trying another approach...",
+                    message="Fixing Error",
+                    detail=f"Code had an issue: {short_error}. Generating improved version...",
                     attempt=fallback_attempt + 1,
                 )
                 fallback_messages = self._build_retry_messages(
@@ -507,7 +538,8 @@ class NFLService:
         yield StreamEvent(
             event="error",
             step="generating",
-            message=f"Unable to find the data you requested. Please try rephrasing your question.",
+            message="Unable to Answer",
+            detail="Could not find the data you requested. Please try rephrasing your question.",
             data=NFLResponse(
                 response=f"Failed to generate working code: {result.error}",
                 code_generated=result.code,

@@ -19,6 +19,7 @@ interface StreamEvent {
   event: "status" | "complete" | "error";
   step: string;
   message: string;
+  detail?: string;
   attempt?: number;
   data?: NFLResponse;
 }
@@ -67,7 +68,6 @@ export async function POST(req: Request) {
 
     const textId = generateId();
     const toolCallId = `nfl_query_${Date.now()}`;
-    const reasoningId = generateId();
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -79,8 +79,6 @@ export async function POST(req: Request) {
         const decoder = new TextDecoder();
         let buffer = "";
         let finalData: NFLResponse | null = null;
-        let reasoningStarted = false;
-        let currentStatus = "";
 
         console.log("[route.ts] Starting to read backend stream");
 
@@ -106,24 +104,33 @@ export async function POST(req: Request) {
                   console.log("[route.ts] Received event:", event);
 
                   if (event.event === "status") {
-                    // Stream status as reasoning parts
-                    if (!reasoningStarted) {
-                      writer.write({
-                        type: "reasoning-start",
-                        id: reasoningId,
-                      });
-                      reasoningStarted = true;
-                    }
+                    // Each status update gets its own reasoning part
+                    const statusId = generateId();
 
-                    // Add the new status message
-                    const statusText = event.message + "\n";
-                    currentStatus += statusText;
+                    // Format: "**Title**\nDetail" for nice display
+                    const statusContent = event.detail
+                      ? `**${event.message}**\n${event.detail}`
+                      : `**${event.message}**`;
+
+                    writer.write({
+                      type: "reasoning-start",
+                      id: statusId,
+                    });
                     writer.write({
                       type: "reasoning-delta",
-                      id: reasoningId,
-                      delta: statusText,
+                      id: statusId,
+                      delta: statusContent,
                     });
-                    console.log("[route.ts] Writing reasoning:", event.message);
+                    writer.write({
+                      type: "reasoning-end",
+                      id: statusId,
+                    });
+
+                    console.log(
+                      "[route.ts] Writing reasoning:",
+                      event.message,
+                      event.detail,
+                    );
                   } else if (event.event === "complete" && event.data) {
                     finalData = event.data;
                   } else if (event.event === "error") {
@@ -139,14 +146,6 @@ export async function POST(req: Request) {
           }
         } finally {
           reader.releaseLock();
-        }
-
-        // End reasoning if we started it
-        if (reasoningStarted) {
-          writer.write({
-            type: "reasoning-end",
-            id: reasoningId,
-          });
         }
 
         if (finalData) {

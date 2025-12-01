@@ -86,6 +86,9 @@ class StreamEvent(BaseModel):
         description="Current step: 'analyzing', 'generating', 'executing', 'retrying', 'validating', 'summarizing', 'fallback'",
     )
     message: str = Field(..., description="User-friendly status message")
+    detail: str | None = Field(
+        default=None, description="Additional detail about what's happening"
+    )
     attempt: int | None = Field(default=None, description="Current attempt number")
     data: NFLResponse | None = Field(
         default=None, description="Final response data when complete"
