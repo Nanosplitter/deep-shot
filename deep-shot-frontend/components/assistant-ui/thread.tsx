@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
+import { NFLQueryTool } from "@/components/assistant-ui/nfl-query-tool";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import {
   ComposerAddAttachment,
@@ -96,7 +97,7 @@ const ThreadWelcome: FC = () => {
             exit={{ opacity: 0, y: 10 }}
             className="aui-thread-welcome-message-motion-1 text-2xl font-semibold"
           >
-            Hello there!
+            Welcome to Deep Shot 🏈
           </m.div>
           <m.div
             initial={{ opacity: 0, y: 10 }}
@@ -105,7 +106,7 @@ const ThreadWelcome: FC = () => {
             transition={{ delay: 0.1 }}
             className="aui-thread-welcome-message-motion-2 text-2xl text-muted-foreground/65"
           >
-            How can I help you today?
+            Ask me anything about NFL stats
           </m.div>
         </div>
       </div>
@@ -119,24 +120,25 @@ const ThreadSuggestions: FC = () => {
     <div className="aui-thread-welcome-suggestions grid w-full gap-2 pb-4 @md:grid-cols-2">
       {[
         {
-          title: "What's the weather",
-          label: "in San Francisco?",
-          action: "What's the weather in San Francisco?",
+          title: "Who leads the league",
+          label: "in passing yards?",
+          action: "Who leads the league in passing yards?",
         },
         {
-          title: "Explain React hooks",
-          label: "like useState and useEffect",
-          action: "Explain React hooks like useState and useEffect",
+          title: "Compare Mahomes and Allen",
+          label: "this season",
+          action: "Compare Patrick Mahomes and Josh Allen's stats this season",
         },
         {
-          title: "Write a SQL query",
-          label: "to find top customers",
-          action: "Write a SQL query to find top customers",
+          title: "Top rushing touchdowns",
+          label: "this week",
+          action: "Who had the most rushing touchdowns this week?",
         },
         {
-          title: "Create a meal plan",
-          label: "for healthy weight loss",
-          action: "Create a meal plan for healthy weight loss",
+          title: "Show me the Lions' record",
+          label: "vs NFC North",
+          action:
+            "What is the Lions' record against NFC North teams this season?",
         },
       ].map((suggestedAction, index) => (
         <m.div
@@ -251,7 +253,7 @@ const AssistantMessage: FC = () => {
               Text: MarkdownText,
               Reasoning: Reasoning,
               ReasoningGroup: ReasoningGroup,
-              tools: { Fallback: ToolFallback },
+              tools: { nfl_query: NFLQueryTool, Fallback: ToolFallback },
             }}
           />
           <MessageError />

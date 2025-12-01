@@ -13,7 +13,17 @@
       "consoleName": "Backend"
     },
     {
-      "name": "Frontend (Streamlit)",
+      "name": "Frontend (Next.js)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "cwd": "${workspaceFolder}/deep-shot-frontend",
+      "console": "integratedTerminal",
+      "consoleName": "Frontend (Next.js)"
+    },
+    {
+      "name": "Streamlit",
       "type": "debugpy",
       "request": "launch",
       "module": "streamlit",
@@ -21,18 +31,28 @@
       "cwd": "${workspaceFolder}/backend",
       "console": "integratedTerminal",
       "justMyCode": true,
-      "consoleName": "Frontend"
+      "consoleName": "Streamlit"
     }
   ],
   "compounds": [
     {
-      "name": "Full Stack (Backend + Frontend)",
-      "configurations": ["Backend (FastAPI)", "Frontend (Streamlit)"],
+      "name": "Backend + Frontend",
+      "configurations": ["Backend (FastAPI)", "Frontend (Next.js)"],
       "stopAll": true,
       "presentation": {
         "hidden": false,
         "group": "full-stack",
         "order": 1
+      }
+    },
+    {
+      "name": "Backend + Streamlit",
+      "configurations": ["Backend (FastAPI)", "Streamlit"],
+      "stopAll": true,
+      "presentation": {
+        "hidden": false,
+        "group": "full-stack",
+        "order": 2
       }
     }
   ]
