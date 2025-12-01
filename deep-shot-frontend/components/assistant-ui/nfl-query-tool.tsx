@@ -6,7 +6,7 @@ import {
   CodeIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useSettings } from "@/lib/settings-context";
 
 interface NFLQueryArgs {
   code: string;
@@ -19,6 +19,12 @@ export const NFLQueryTool: ToolCallMessagePartComponent<NFLQueryArgs> = ({
   result,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const { settings } = useSettings();
+
+  // Only show in debug mode
+  if (!settings.debugMode) {
+    return null;
+  }
 
   if (!args?.code) {
     return null;
